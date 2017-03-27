@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.3.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.2.xsd
+                           http://www.springframework.org/schema/rabbit http://www.springframework.org/schema/rabbit/spring-rabbit-1.6.xsd">
+    
+    <context:component-scan base-package="ru.jakimenko.genmesrab" />
+    
+    <rabbit:connection-factory id="rabbitmqConnectionFactory"
+                               addresses="${rabbitmq.addresses}"
+                               username="${rabbitmq.username}" 
+                               password="${rabbitmq.password}" />
+    
+    <bean id="rabbitmqErrorHandler" class="org.springframework.amqp.rabbit.listener.ConditionalRejectingErrorHandler">
+        <constructor-arg index="0" ref="rabbitMqExceptionStrategy" />
+    </bean>
+    
+    <bean id="rabbitmqListenerAdapter" class="org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter">
+        <constructor-arg index="0" ref="rabbitMqMessageHandler" />
+        <constructor-arg index="1" ref="rabbitMqMessageConverter" />
+    </bean>
+    
+    <rabbit:listener-container connection-factory="rabbitmqConnectionFactory" prefetch="80" transaction-size="80" acknowledge="auto" auto-startup="false" idle-event-interval="1000" error-handler="rabbitmqErrorHandler" concurrency="${rabbitmq.thread.count}" max-concurrency="${rabbitmq.thread.count}">
+        <rabbit:listener id="rabbitmqListenerContainer" queue-names="${rabbitmq.queue}" ref="rabbitmqListenerAdapter" method="handleMessage" />
+    </rabbit:listener-container>
+    
+    <bean class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close">
+        <property name="url" value="${database.url}" />
+        <property name="driverClassName" value="com.mysql.jdbc.Driver" />
+        <property name="username" value="${database.username}" />
+        <property name="password" value="${database.password}" />
+        <property name="removeAbandonedTimeout" value="60" />
+        <property name="initialSize" value="5" />
+        <property name="validationQuery" value="SELECT 1" />
+        <property name="defaultTransactionIsolation" value="2"/>
+    </bean>
+    
+    <rabbit:template id="rabbitTemplate"
+                     connection-factory="rabbitmqConnectionFactory" 
+                     message-converter="rabbitMqMessageConverter" 
+                     routing-key="${rabbitmq.queue}" />
+    
+</beans>
